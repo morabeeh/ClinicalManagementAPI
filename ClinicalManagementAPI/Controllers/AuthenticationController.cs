@@ -2,6 +2,7 @@
 using ClinicalManagementAPI.DataModels.RequestModels;
 using ClinicalManagementAPI.Encryption.JWT;
 using ClinicalManagementAPI.Models.Users;
+using ClinicalManagementAPI.Utility.Mail;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ClinicalManagementAPI.Controllers
 {
@@ -22,11 +24,14 @@ namespace ClinicalManagementAPI.Controllers
         private readonly ClinicContext _context;
         private readonly IConfiguration _configuration;
         private readonly JwtSettings _jwtSettings;
-
-        public AuthenticationController(IOptions<JwtSettings> jwtSettings,ClinicContext context)
+        private readonly IMailTemplate _mailTemplate;
+        private readonly IMailHelper _mailHelper;
+        public AuthenticationController(IOptions<JwtSettings> jwtSettings,ClinicContext context, IMailTemplate mailTemplate, IMailHelper mailHelper)
         {
             _jwtSettings = jwtSettings.Value;
             _context = context;
+            _mailTemplate = mailTemplate;
+            _mailHelper = mailHelper;
         }
 
         [HttpPost("register")]
@@ -40,7 +45,6 @@ namespace ClinicalManagementAPI.Controllers
 
             if (existingUser)
             {
-                // Return 300 status code if the user already exists
                 return StatusCode(300, new { error = "User with this Email Address or Citizen ID already exists." });
             }
 
@@ -69,6 +73,22 @@ namespace ClinicalManagementAPI.Controllers
             await _context.UserRoles.AddAsync(userRole);
             await _context.SaveChangesAsync();
 
+            string body = await _mailTemplate.GetWelcomeUserTemplate(user);
+            var recipients = new List<string>();
+
+            if (!string.IsNullOrEmpty(user.EmailAddress))
+            {
+                recipients.Add(user.EmailAddress);
+            }
+            var validRecipients = recipients
+                .Where(recipient => Regex.IsMatch(recipient, @"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"))
+                .ToArray(); 
+
+            if (validRecipients.Length > 0)
+            {
+                _mailHelper.SendEmailInBackground(validRecipients, "Welcome to Al-Huda", body);
+            }
+
             // Generate JWT Token
             var token = GenerateJwtToken(user, userRole);
 
@@ -85,36 +105,47 @@ namespace ClinicalManagementAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] DataModels.RequestModels.LoginRequest loginRequest)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.CitizenId == loginRequest.CitizenId && u.Password == loginRequest.Password);
-
-            if (user == null)
+            try
             {
-                return Unauthorized(new { statusCode = 401, message = "Invalid email or password" });
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.CitizenId == loginRequest.CitizenId && u.Password == loginRequest.Password);
+
+                if (user == null)
+                {
+                    return Unauthorized(new { statusCode = 401, message = "Invalid CiizenId or password" });
+                }
+
+                var userRole = await _context.UserRoles
+                    .FirstOrDefaultAsync(ur => ur.UserId == user.Id);
+
+                if (userRole == null)
+                {
+                    return NotFound(new { statusCode = 404, message = "User role not found" });
+                }
+
+                
+
+                // Generate JWT token
+                var token = GenerateJwtToken(user, userRole);
+
+                return Ok(new
+                {
+                    statusCode = 200,
+                    message = "User successfully logged in",
+                    userName = user.Name,
+                    userRole = userRole.UserRoleName,
+                    token = token
+                });
+
             }
-
-            var userRole = await _context.UserRoles
-                .FirstOrDefaultAsync(ur => ur.UserId == user.Id);
-
-            if (userRole == null)
+            catch(Exception ex)
             {
-                return NotFound(new { statusCode = 404, message = "User role not found" });
+                return BadRequest();
             }
-
-            // Generate JWT token
-            var token = GenerateJwtToken(user,userRole);
-
-            return Ok(new
-            {
-                statusCode = 200,
-                message = "User successfully logged in",
-                userName = user.Name,
-                userRole = userRole.UserRoleName,
-                token = token
-            });
+            
         }
 
         private string GenerateJwtToken(Users user,UserRole userRole)

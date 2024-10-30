@@ -1,10 +1,12 @@
 using ClinicalManagementAPI.Data;
 using ClinicalManagementAPI.Encryption.JWT;
 using ClinicalManagementAPI.Models; // Adjust this if JwtSettings is in a different namespace
+using ClinicalManagementAPI.Utility.Mail;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using static ClinicalManagementAPI.Utility.Mail.IMailHelper;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddDbContext<ClinicContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+
+
+builder.Services.AddScoped<IMailHelper, MailHelper>();
+builder.Services.AddScoped<IMailTemplate, MailTemplate>();
 
 // Configure CORS to allow any origin
 builder.Services.AddCors(options =>
