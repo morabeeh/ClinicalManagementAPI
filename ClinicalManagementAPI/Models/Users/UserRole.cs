@@ -12,8 +12,11 @@ namespace ClinicalManagementAPI.Models.Users
         [StringLength(50)]
         public string UserRoleName { get; set; }
 
+        [Required]
+        public int UserRoleNameId { get; set; }
+
         public int UserId { get; set; }
         [ForeignKey("UserId")]
-        public Users User { get; set; }
+        public UserDetails User { get; set; }
     }
 }

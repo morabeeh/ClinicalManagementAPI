@@ -1,8 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using ClinicalManagementAPI.Models.Doctors;
 
 namespace ClinicalManagementAPI.Models.Users
 {
-    public class Users
+    public class UserDetails
     {
         [Key]
         public int Id { get; set; }
@@ -38,5 +39,7 @@ namespace ClinicalManagementAPI.Models.Users
         public string ? Address { get; set; }
 
         public ICollection<UserRole> UserRoles { get; set; }
+
+        public ICollection <DoctorDetails> Doctors { get; set; }
     }
 }

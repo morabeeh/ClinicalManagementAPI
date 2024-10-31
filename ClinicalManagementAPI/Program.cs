@@ -2,6 +2,7 @@ using ClinicalManagementAPI.Data;
 using ClinicalManagementAPI.Encryption.JWT;
 using ClinicalManagementAPI.Models; // Adjust this if JwtSettings is in a different namespace
 using ClinicalManagementAPI.Services.AuthenticatoinServices;
+using ClinicalManagementAPI.Services.DoctorLogicService;
 using ClinicalManagementAPI.Utility.Mail;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ClinicContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-
+builder.Services.AddScoped<IDoctorLogicService, DoctorLogicService>();
 builder.Services.AddScoped<IAuthenticationServices, AuthenticationService>();
 builder.Services.AddScoped<IMailHelper, MailHelper>();
 builder.Services.AddScoped<IMailTemplate, MailTemplate>();

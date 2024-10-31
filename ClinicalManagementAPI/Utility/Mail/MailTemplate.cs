@@ -4,12 +4,12 @@ namespace ClinicalManagementAPI.Utility.Mail
 {
     public interface IMailTemplate
     {
-        Task<string> GetWelcomeUserTemplate(Users user);
+        Task<string> GetWelcomeUserTemplate(UserDetails user);
     }
     public class MailTemplate:IMailTemplate
     {
 
-        public async Task<string> GetWelcomeUserTemplate(Users user)
+        public async Task<string> GetWelcomeUserTemplate(UserDetails user)
         {
             string body = $@"<p style='font-family: Calibri; font-size: 12px; color: #249ee4;'>
                         Dear {user.Name},<br/><br/>

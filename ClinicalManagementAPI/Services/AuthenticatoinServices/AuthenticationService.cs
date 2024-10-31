@@ -52,7 +52,7 @@ namespace ClinicalManagementAPI.Services.AuthenticatoinServices
                 };
             }
 
-            var user = new Users
+            var user = new UserDetails
             {
                 Name = regRequest.Name,
                 CitizenId = regRequest.CitizenId,
@@ -70,7 +70,8 @@ namespace ClinicalManagementAPI.Services.AuthenticatoinServices
             var userRole = new UserRole
             {
                 UserId = user.Id,
-                UserRoleName = "Public User"
+                UserRoleName = "Public User",
+                UserRoleId = 1
             };
 
             await _context.UserRoles.AddAsync(userRole);
@@ -129,13 +130,15 @@ namespace ClinicalManagementAPI.Services.AuthenticatoinServices
             {
                 statusCode = 200,
                 message = "User successfully logged in",
+                userId=user.Id,
                 userName = user.Name,
                 userRole = userRole.UserRoleName,
+                userRoleNameId=userRole.UserRoleNameId,
                 token = token
             });
         }
 
-        public async Task<string> GenerateJwtToken(Users user, UserRole userRole)
+        public async Task<string> GenerateJwtToken(UserDetails user, UserRole userRole)
         {
             var key = Encoding.ASCII.GetBytes((_jwtSettings.Key));
 
