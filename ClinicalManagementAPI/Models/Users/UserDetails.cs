@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using ClinicalManagementAPI.Models.Doctors;
+using ClinicalManagementAPI.Models.Patients;
 
 namespace ClinicalManagementAPI.Models.Users
 {
@@ -41,5 +42,7 @@ namespace ClinicalManagementAPI.Models.Users
         public ICollection<UserRole> UserRoles { get; set; }
 
         public ICollection <DoctorDetails> Doctors { get; set; }
+
+        public ICollection <PatientDetails> Patients { get; set; }
     }
 }

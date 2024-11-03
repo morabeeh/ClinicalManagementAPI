@@ -71,7 +71,7 @@ namespace ClinicalManagementAPI.Services.AuthenticatoinServices
             {
                 UserId = user.Id,
                 UserRoleName = "Public User",
-                UserRoleId = 1
+                UserRoleNameId = 1
             };
 
             await _context.UserRoles.AddAsync(userRole);

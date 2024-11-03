@@ -43,9 +43,9 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(new { message = "Doctor assigned successfully", doctorId = doctor.DoctorId,doctorName=doctor.DoctorName });
         }
 
-        
 
-        
+
+
 
 
 
@@ -67,18 +67,95 @@ namespace ClinicalManagementAPI.Controllers
             if (!TimeSpan.TryParse(request.EndTime, out TimeSpan endTime))
                 return BadRequest("Invalid end time format. Use 'HH:mm'.");
 
-            var availability = new DoctorAvailability
+            // Check if availability overlaps with existing ones
+            //var overlappingAvailability = await _context.DoctorAvailabilities
+            //    .AnyAsync(d => d.DoctorId == request.DoctorId &&
+            //                   d.DayOfWeek == request.DayOfWeek &&
+            //                   ((startTime >= d.StartTime && startTime < d.EndTime) ||
+            //                    (endTime > d.StartTime && endTime <= d.EndTime) ||
+            //                    (startTime <= d.StartTime && endTime >= d.EndTime)));
+
+            //if (overlappingAvailability)
+            //    return BadRequest(new { message = "The specified time range overlaps with existing availability." });
+
+
+            // Fetch existing availability if present
+            var existingAvailability = await _context.DoctorAvailabilities
+                .FirstOrDefaultAsync(d => d.DoctorId == request.DoctorId && d.DayOfWeek == request.DayOfWeek);
+
+            if (existingAvailability == null)
             {
-                DoctorId = request.DoctorId,
-                DayOfWeek = request.DayOfWeek,
-                StartTime = startTime,
-                EndTime = endTime
-            };
+                // Add new availability
+                var availability = new DoctorAvailability
+                {
+                    DoctorId = request.DoctorId,
+                    DayOfWeek = request.DayOfWeek,
+                    StartTime = startTime,
+                    EndTime = endTime
+                };
 
-            _context.DoctorAvailabilities.Add(availability);
+                _context.DoctorAvailabilities.Add(availability);
+            }
+            else
+            {
+                // Update existing availability
+                existingAvailability.DayOfWeek = request.DayOfWeek;
+                existingAvailability.StartTime = startTime;
+                existingAvailability.EndTime = endTime;
+            }
+
             await _context.SaveChangesAsync();
-
             return Ok(new { message = "Doctor availability added successfully" });
+        }
+
+        [HttpGet("availableDoctors")]
+        public async Task<IActionResult> GetAvailableDoctors([FromQuery] DateTime? date = null)
+        {
+            var selectedDate = date?.Date ?? DateTime.Today.Date;  // Only take the date part
+            var dayOfWeek = selectedDate.DayOfWeek.ToString();
+            var isToday = selectedDate == DateTime.Today.Date;
+
+            // Fetch doctors based on selectedDate conditionally
+            var doctors = await _context.Doctors
+                .Include(d => d.Department)
+                .Include(d => d.User)
+                .Include(d => d.DoctorAvaialabilities)
+                .Include(d => d.DoctorAttendances)
+                .Where(d => d.DoctorAvaialabilities.Any(a => a.DayOfWeek == dayOfWeek) &&
+                            // Conditionally check DoctorAttendances if date is today's date
+                            (!isToday || d.DoctorAttendances.Any(att =>
+                                att.TodaysDate.HasValue &&
+                                att.TodaysDate.Value.Date == selectedDate &&
+                                att.IsPresentToday == true))
+                        )
+                .Select(d => new DoctorDto
+                {
+                    UserId = d.User.Id,
+                    DoctorId = d.DoctorId,
+                    DoctorGuid = d.DoctorGuid,
+                    DoctorName = d.DoctorName,
+                    DoctorEducation = d.DoctorEducation,
+                    Specialization = d.Specialization,
+                    TotalYearExperience = d.TotalYearExperience,
+                    CitizenId = d.User.CitizenId,
+                    Department = new DepartmentDto
+                    {
+                        DepartmentId = d.Department.DepartmentId,
+                        DepartmentName = d.Department.DepartmentName,
+                        DepartmentDescription = d.Department.DepartmentDescription
+                    },
+                    Availabilities = d.DoctorAvaialabilities
+                        .Where(a => a.DayOfWeek == dayOfWeek)
+                        .Select(a => new AvailabilityDto
+                        {
+                            DayOfWeek = a.DayOfWeek,
+                            StartTime = a.StartTime,
+                            EndTime = a.EndTime
+                        }).ToList()
+                })
+                .ToListAsync();
+
+            return Ok(doctors);
         }
 
 
@@ -115,8 +192,9 @@ namespace ClinicalManagementAPI.Controllers
         {
             var users = await _context.Users
                         .Include(u => u.UserRoles)
-                        .Where(u => u.UserRoles.Any()) // Only include users with roles
+                        .Where(u => u.UserRoles.Any(role => role.UserRoleNameId != 10)) // Only include users with roles that are not 10
                         .ToListAsync();
+
 
             // Map to DTOs
             var userDtos = users.Select(u => new UserWithRolesDto
@@ -149,6 +227,7 @@ namespace ClinicalManagementAPI.Controllers
                     .Include(d => d.Department)
                     .Include(d => d.User)
                     .Include(d => d.DoctorAvaialabilities)
+                    .Include(d => d.DoctorAttendances)
                     .Select(d => new DoctorDto
                     {
                         UserId = d.User.Id,
@@ -170,6 +249,11 @@ namespace ClinicalManagementAPI.Controllers
                             DayOfWeek = a.DayOfWeek,
                             StartTime = a.StartTime,
                             EndTime = a.EndTime
+                        }).ToList(),
+                        Attendances = d.DoctorAttendances.Select(a => new AttendanceDto
+                        {
+                            TodaysDate = a.TodaysDate,
+                            IsPresentToday = a.IsPresentToday
                         }).ToList()
                     })
                     .ToListAsync();

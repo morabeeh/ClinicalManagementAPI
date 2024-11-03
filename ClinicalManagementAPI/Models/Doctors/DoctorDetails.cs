@@ -1,6 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel.DataAnnotations;
 using ClinicalManagementAPI.Models.Users;
+using ClinicalManagementAPI.Models.Patients;
+using ClinicalManagementAPI.Models.Bookings;
 
 namespace ClinicalManagementAPI.Models.Doctors
 {
@@ -34,5 +36,7 @@ namespace ClinicalManagementAPI.Models.Doctors
 
         public ICollection<DoctorAttendance> DoctorAttendances { get; set; }
         public ICollection<DoctorAvailability> DoctorAvaialabilities { get; set; }
+
+        public ICollection<BookingDetails>? BookingDetails { get; set; }
     }
 }
