@@ -1,5 +1,6 @@
 ﻿using ClinicalManagementAPI.Models.Bookings;
 using ClinicalManagementAPI.Models.Doctors;
+using ClinicalManagementAPI.Models.Prescription;
 using ClinicalManagementAPI.Models.Users;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -26,13 +27,20 @@ namespace ClinicalManagementAPI.Models.Patients
         //Doctor Details
         public string ?ConsultedDoctor {  get; set; }
         public DateTime ?ConsultedDate { get; set; }
+
         public int? DoctorId { get; set; }
         [ForeignKey("DoctorId")]
         public DoctorDetails ?Doctor { get; set; }
+
+        public int? BookingId { get; set; }
+        [ForeignKey("BookingId")]
+        public BookingDetails? BookingDetails { get; set; }
 
         public int? BookingHistoryId { get; set; }
         [ForeignKey("BookingHistoryId")]
         public BookingHistory? BookingHistory { get; set; }
 
+
+        public ICollection<PrescriptionDetails>? PrescriptionDetails { get; set; }
     }
 }

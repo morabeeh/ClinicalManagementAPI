@@ -1,5 +1,6 @@
 ﻿using ClinicalManagementAPI.Models.Doctors;
 using ClinicalManagementAPI.Models.Patients;
+using ClinicalManagementAPI.Models.Prescription;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,5 +26,8 @@ namespace ClinicalManagementAPI.Models.Bookings
         [ForeignKey("DoctorId")]
         public DoctorDetails? DoctorDetails { get; set; }
         public ICollection<BookingHistory> BookingHistory { get; set; }
+
+        public ICollection<PrescriptionDetails>? PrescriptionDetails { get; set; }  // Add this line
+
     }
 }

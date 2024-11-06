@@ -1,6 +1,7 @@
 ﻿using ClinicalManagementAPI.Models.Bookings;
 using ClinicalManagementAPI.Models.Doctors;
 using ClinicalManagementAPI.Models.Patients;
+using ClinicalManagementAPI.Models.Prescription;
 using ClinicalManagementAPI.Models.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -33,6 +34,11 @@ namespace ClinicalManagementAPI.Data
         //Booking
         public DbSet<BookingDetails> BookingDetails { get; set; }
         public DbSet<BookingHistory> BookingHistories { get; set; }
+
+
+        //Prescription
+        public DbSet<PrescriptionDetails> PrescriptionDetails { get; set; }
+        public DbSet<PrescriptionHistory> PrescriptionHistory { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -98,6 +104,13 @@ namespace ClinicalManagementAPI.Data
                 .HasForeignKey(ph => ph.DoctorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Patient History and Booking Mapping
+            modelBuilder.Entity<PatientHistory>()
+                .HasOne(ph => ph.BookingDetails)
+                .WithMany()
+                .HasForeignKey(ph => ph.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Patient History and Booking History Mapping
             modelBuilder.Entity<PatientHistory>()
                 .HasOne(ph => ph.BookingHistory)
@@ -111,7 +124,64 @@ namespace ClinicalManagementAPI.Data
                 .WithMany(b => b.BookingHistory)
                 .HasForeignKey(bh => bh.BookingId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Patient History and Booking History Mapping
+            modelBuilder.Entity<PrescriptionDetails>()
+                .HasOne(ph => ph.PatientHistory)
+                .WithMany()
+                .HasForeignKey(ph => ph.PatientHistoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionDetails and Patient Mapping
+            modelBuilder.Entity<PrescriptionDetails>()
+                .HasOne(pd => pd.PatientDetails)
+                .WithMany(p => p.PrescriptionDetails)
+                .HasForeignKey(pd => pd.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionDetails and Doctor Mapping with one ways
+            modelBuilder.Entity<PrescriptionDetails>()
+                        .HasOne(pd => pd.DoctorDetails)       
+                        .WithMany()
+                        .HasForeignKey(pd => pd.DoctorId)     
+                        .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionDetails and Booking Mapping
+            modelBuilder.Entity<PrescriptionDetails>()
+                .HasOne(pd => pd.BookingDetails)
+                .WithMany(b => b.PrescriptionDetails)
+                .HasForeignKey(pd => pd.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionHistory and PrescriptionDetails Mapping
+            modelBuilder.Entity<PrescriptionHistory>()
+                .HasOne(ph => ph.PrescriptionDetails)
+                .WithMany()
+                .HasForeignKey(ph => ph.PrescriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionHistory and Patient Mapping
+            modelBuilder.Entity<PrescriptionHistory>()
+                .HasOne(ph => ph.PatientDetails)
+                .WithMany()
+                .HasForeignKey(ph => ph.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionHistory and Booking Mapping
+            modelBuilder.Entity<PrescriptionHistory>()
+                .HasOne(ph => ph.BookingDetails)
+                .WithMany()
+                .HasForeignKey(ph => ph.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PrescriptionHistory and Doctor Mapping
+            modelBuilder.Entity<PrescriptionHistory>()
+                .HasOne(ph => ph.DoctorDetails)
+                .WithMany()
+                .HasForeignKey(ph => ph.DoctorId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
+
 
 
     }

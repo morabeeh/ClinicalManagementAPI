@@ -1,4 +1,5 @@
 ﻿using ClinicalManagementAPI.Models.Bookings;
+using ClinicalManagementAPI.Models.Prescription;
 using ClinicalManagementAPI.Models.Users;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -26,6 +27,8 @@ namespace ClinicalManagementAPI.Models.Patients
         public ICollection<PatientHistory> ?PatientHistory { get; set; }
 
         public ICollection<BookingDetails>? BookingDetails { get; set; }
+
+        public ICollection<PrescriptionDetails>? PrescriptionDetails { get; set; }  // Add this line
 
     }
 }

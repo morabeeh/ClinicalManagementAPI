@@ -180,6 +180,7 @@ namespace ClinicalManagementAPI.Controllers
                 ConsultedDoctor = doctor?.DoctorName,
                 DoctorId = doctor?.DoctorId,
                 BookingHistoryId = bookingHistory.BookingHistoryId,
+                BookingId= bookingDetails.BookingId,
                 ConsultedDate= bookingDetails.BookingDateTime
             };
 
@@ -252,6 +253,7 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(response);
         }
 
+
         [HttpGet("getBookingDetailsWithDoctor")]
         public async Task<IActionResult> GetBookingDetailsWithDoctor(int userId,int doctorId)
         {
@@ -305,6 +307,8 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(response);
         }
         
+
+
 
     }
 
