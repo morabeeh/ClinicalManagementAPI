@@ -325,5 +325,53 @@ namespace ClinicalManagementAPI.Controllers
             }
         }
 
+        [HttpGet("getSpecificDoctorDetails")]
+        public async Task<IActionResult> GetSpecificDoctorDetails(int doctorId)
+        {
+            try
+            {
+                var doctors = await _context.Doctors
+                    .Include(d => d.Department)
+                    .Include(d => d.User)
+                    .Include(d => d.DoctorAvaialabilities)
+                    .Where(d => d.DoctorId == doctorId)
+                    .Select(d => new DoctorDto
+                    {
+                        UserId = d.User.Id,
+                        DoctorId = d.DoctorId,
+                        DoctorGuid = d.DoctorGuid,
+                        DoctorName = d.DoctorName,
+                        DoctorEducation = d.DoctorEducation,
+                        Specialization = d.Specialization,
+                        TotalYearExperience = d.TotalYearExperience,
+                        CitizenId = d.User.CitizenId,
+                        Gender=d.User.Gender,
+                        Department = new DepartmentDto
+                        {
+                            DepartmentId = d.Department.DepartmentId,
+                            DepartmentName = d.Department.DepartmentName,
+                            DepartmentDescription = d.Department.DepartmentDescription
+                        },
+                        Availabilities = d.DoctorAvaialabilities.Select(a => new AvailabilityDto
+                        {
+                            DayOfWeek = a.DayOfWeek,
+                            StartTime = a.StartTime,
+                            EndTime = a.EndTime
+                        }).ToList()
+                    })
+                    .ToListAsync();
+
+                if (doctors == null || !doctors.Any())
+                {
+                    return NotFound(new { Message = "No Records Found" });
+                }
+
+                return Ok(doctors);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "An error occurred while retrieving the doctor details.", Details = ex.Message });
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@
 using ClinicalManagementAPI.DataModels.RequestModels;
 using ClinicalManagementAPI.DataModels.ResponseModels;
 using ClinicalManagementAPI.Models.Bookings;
+using ClinicalManagementAPI.Models.Doctors;
 using ClinicalManagementAPI.Models.Patients;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,17 +23,18 @@ namespace ClinicalManagementAPI.Controllers
         [HttpGet("getBookingsForDoctor")]
         public async Task<IActionResult> GetBookingsForDoctor(int doctorId, DateTime bookingDateTime)
         {
+
             var bookingDateTimeUtc = DateTime.SpecifyKind(bookingDateTime, DateTimeKind.Utc).Date;
 
             var bookings = await _context.BookingDetails
                 .Include(b => b.PatientDetails) // Include PatientDetails
                 .Include(b => b.PatientDetails.PatientHistory) // Include PatientHistory
-                .Where(b => b.DoctorId == doctorId && b.BookingDateTime.Value.Date == bookingDateTimeUtc)
+                .Where(b => b.DoctorId == doctorId &&( b.BookingDateTime.Value.Date == bookingDateTimeUtc && b.IsBookingCancelled == false && b.BookingStatus=="Booking Confirmed"))
                 .ToListAsync();
 
             if (bookings == null || !bookings.Any())
             {
-                return NotFound("No bookings found for the specified doctor on this date.");
+                return NotFound(new { message = "Doctor not available at this time" });
             }
 
             var response = bookings.Select(b => new BookingForDoctorResponseDto
@@ -63,6 +65,21 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(response);
         }
 
+        [HttpPost("cancelAppointment")]
+        public async Task<IActionResult> CancelAppointment([FromBody] CancelAppointmentRequestDto request)
+        {
+            var bookings = await _context.BookingDetails.FirstOrDefaultAsync(b => b.BookingId == request.BookingId);
+
+            if (bookings != null)
+            {
+                bookings.BookingStatus = "Booking Cancelled";
+                bookings.IsBookingCancelled = true;
+            }
+
+            await _context.SaveChangesAsync();
+            
+            return Ok(new {message="Booking Has Cancelled"});
+        }
 
 
         [HttpPost("bookAppointment")]
@@ -98,7 +115,7 @@ namespace ClinicalManagementAPI.Controllers
             if (doctorAvailability == null ||
                 request.BookingDateTime.TimeOfDay < doctorAvailability.StartTime ||
                 request.BookingDateTime.TimeOfDay > doctorAvailability.EndTime)
-                return BadRequest("Doctor not available at this time.");
+                return BadRequest(new { message = "Doctor not available at this time" });
 
             // Step 3: Check for Existing Bookings that are not cancelled
             var existingBookings = await _context.BookingDetails
@@ -117,7 +134,7 @@ namespace ClinicalManagementAPI.Controllers
                     (bookingEnd > booking.BookingDateTime && bookingEnd <= bookedEnd))
                 {
                     // If all time slots are booked, we can still create a cancelled booking
-                    return BadRequest("Time slot already booked.");
+                    return BadRequest(new { message = "Time Slot Already Booked" });
                 }
             }
 
@@ -181,6 +198,113 @@ namespace ClinicalManagementAPI.Controllers
 
             return Ok(response);
         }
+
+
+        [HttpGet("getBookingDetails")]
+        public async Task<IActionResult> GetBookingDetails(int userId)
+        {
+            var patient = await _context.PatientDetails
+                .Include(p => p.BookingDetails)
+                    .ThenInclude(b => b.BookingHistory)
+                .Where(p => p.UserId == userId)
+                .FirstOrDefaultAsync();
+
+            if (patient == null)
+            {
+                return NotFound("No patient found for the specified user ID.");
+            }
+
+            // Filter the patient's bookings to only include confirmed bookings
+            var confirmedBookings = patient?.BookingDetails
+                .Where(b => b.BookingStatus == "Booking Confirmed")
+                .ToList();
+
+            if (!confirmedBookings.Any())
+            {
+                return NotFound("No confirmed bookings found for this patient.");
+            }
+
+            // Prepare the response model
+            var response = confirmedBookings.Select(b => new BookingForDoctorResponseDto
+            {
+                BookingDetails = new BookingDetailsDto
+                {
+                    BookingId = b.BookingId,
+                    BookingToken = b.BookingToken,
+                    BookingStatus = b.BookingStatus,
+                    BookingDateTime = b.BookingDateTime,
+                    IsBookingCancelled = b.IsBookingCancelled
+                },
+                PatientDetails = new PatientDetailsDto
+                {
+                    PatientId = patient.PatientId,
+                    PatientName = patient.PatientName,
+                    PatientDescription = patient.PatientDescription,
+                    PatientHealthCondition = patient.PatientHealthCondition
+                },
+                BookingHistory = b.BookingHistory.Select(bh => new BookingHistoryDto
+                {
+                    HistoryId = bh.BookingHistoryId,
+                    BookedDate = bh.BookedDate
+                }).ToList()
+            }).ToList();
+
+            return Ok(response);
+        }
+
+        [HttpGet("getBookingDetailsWithDoctor")]
+        public async Task<IActionResult> GetBookingDetailsWithDoctor(int userId,int doctorId)
+        {
+            var patient = await _context.PatientDetails
+                .Include(p => p.BookingDetails)
+                .Include(p => p.PatientHistory)
+                    .ThenInclude(b => b.BookingHistory)
+                .Where(p => p.UserId == userId)
+                .FirstOrDefaultAsync();
+
+            if (patient == null)
+            {
+                return NotFound("No patient found for the specified user ID.");
+            }
+
+            // Filter the patient's bookings to only include confirmed bookings
+            var confirmedBookings = patient?.BookingDetails
+                .Where(b => b.BookingStatus == "Booking Confirmed" && b.DoctorId==doctorId)
+                .ToList();
+
+            if (!confirmedBookings.Any())
+            {
+                return NotFound("No confirmed bookings found for this patient.");
+            }
+
+            // Prepare the response model
+            var response = confirmedBookings.Select(b => new BookingForDoctorResponseDto
+            {
+                BookingDetails = new BookingDetailsDto
+                {
+                    BookingId = b.BookingId,
+                    BookingToken = b.BookingToken,
+                    BookingStatus = b.BookingStatus,
+                    BookingDateTime = b.BookingDateTime,
+                    IsBookingCancelled = b.IsBookingCancelled
+                },
+                PatientDetails = new PatientDetailsDto
+                {
+                    PatientId = patient.PatientId,
+                    PatientName = patient.PatientName,
+                    PatientDescription = patient.PatientDescription,
+                    PatientHealthCondition = patient.PatientHealthCondition
+                },
+                BookingHistory = b.BookingHistory.Select(bh => new BookingHistoryDto
+                {
+                    HistoryId = bh.BookingHistoryId,
+                    BookedDate = bh.BookedDate
+                }).ToList()
+            }).ToList();
+
+            return Ok(response);
+        }
+        
 
     }
 

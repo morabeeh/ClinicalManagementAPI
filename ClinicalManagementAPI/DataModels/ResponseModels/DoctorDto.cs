@@ -12,6 +12,8 @@ namespace ClinicalManagementAPI.DataModels.ResponseModels
         public string? Specialization { get; set; }
         public double? TotalYearExperience { get; set; }
         public string CitizenId { get; set; } // From UserDetails
+
+        public string Gender { get; set; }
         public DepartmentDto Department { get; set; }
         public List<AvailabilityDto> Availabilities { get; set; }
         public List<AttendanceDto> Attendances { get; set; }

@@ -7,4 +7,8 @@
         public DateTime BookingDateTime { get; set; }
     }
 
+    public class CancelAppointmentRequestDto
+    {
+        public int BookingId { get; set; }
+    }
 }
