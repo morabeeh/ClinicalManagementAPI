@@ -38,7 +38,9 @@
 
         public DateTime? ConsultedDate { get; set; }
 
-        
+        public int? BookingId { get; set; }
+
+        public DateTime? PrescribedDate { get; set; }
     }
 
     // Patient Details DTO
@@ -51,6 +53,9 @@
         public string Gender { get; set; }
         public string Dob { get; set; }
         public string Address { get; set; }
+
+        public string? EmailAddress { get; set; }
+        public string ? PhoneNumber { get; set; }
     }
 
     // Patient History DTO

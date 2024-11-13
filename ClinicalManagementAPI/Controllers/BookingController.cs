@@ -91,6 +91,7 @@ namespace ClinicalManagementAPI.Controllers
 
             var patient = await _context.PatientDetails
                 .FirstOrDefaultAsync(p => p.UserId == request.UserId);
+
             if (patient == null)
             {
                 patient = new PatientDetails
@@ -107,17 +108,38 @@ namespace ClinicalManagementAPI.Controllers
             var bookingDateTimeUtc = DateTime.SpecifyKind(request.BookingDateTime, DateTimeKind.Utc);
             var dayOfWeek = bookingDateTimeUtc.DayOfWeek.ToString();
 
-            // Step 2: Check Doctor Availability for given Date and Time
+            // Step 1: Check if booking is in the past (for today only)
+            if (bookingDateTimeUtc.Date == DateTime.UtcNow.Date && bookingDateTimeUtc < DateTime.UtcNow)
+            {
+                return BadRequest(new { message = "Booking time cannot be in the past for today." });
+            }
+
+            // Step 2: Check Doctor Availability for the given date and time
             var doctorAvailability = await _context.DoctorAvailabilities
                 .Where(a => a.DoctorId == request.DoctorId && a.DayOfWeek == dayOfWeek)
                 .FirstOrDefaultAsync();
 
             if (doctorAvailability == null ||
-                request.BookingDateTime.TimeOfDay < doctorAvailability.StartTime ||
-                request.BookingDateTime.TimeOfDay > doctorAvailability.EndTime)
-                return BadRequest(new { message = "Doctor not available at this time" });
+                bookingDateTimeUtc.TimeOfDay < doctorAvailability.StartTime ||
+                bookingDateTimeUtc.TimeOfDay > doctorAvailability.EndTime)
+            {
+                return BadRequest(new { message = "Doctor not available at this time." });
+            }
 
-            // Step 3: Check for Existing Bookings that are not cancelled
+            // Step 3: Check if the user already has two bookings on the same day
+            var sameDayBookings = await _context.BookingDetails
+                .Where(b => b.PatientId == patient.PatientId &&
+                            b.BookingDateTime.HasValue &&
+                            b.BookingDateTime.Value.Date == request.BookingDateTime.Date &&
+                            !b.IsBookingCancelled) // Only count active bookings
+                .CountAsync();
+
+            if (sameDayBookings >= 2)
+            {
+                return BadRequest(new { message = "You can only book up to two appointments per day." });
+            }
+
+            // Step 4: Check for Existing Bookings that are not cancelled
             var existingBookings = await _context.BookingDetails
                 .Where(b => b.DoctorId == request.DoctorId &&
                              b.BookingDateTime.Value.Date == request.BookingDateTime.Date &&
@@ -133,16 +155,15 @@ namespace ClinicalManagementAPI.Controllers
                 if ((request.BookingDateTime >= booking.BookingDateTime && request.BookingDateTime < bookedEnd) ||
                     (bookingEnd > booking.BookingDateTime && bookingEnd <= bookedEnd))
                 {
-                    // If all time slots are booked, we can still create a cancelled booking
                     return BadRequest(new { message = "Time Slot Already Booked" });
                 }
             }
 
-            // Step 4: Generate Booking Token
+            // Step 5: Generate Booking Token
             var dailyBookings = existingBookings.Count();
             var token = dailyBookings + 1;
 
-            // Step 5: Add New Booking
+            // Step 6: Add New Booking
             var bookingDetails = new BookingDetails
             {
                 BookingToken = token,
@@ -180,8 +201,8 @@ namespace ClinicalManagementAPI.Controllers
                 ConsultedDoctor = doctor?.DoctorName,
                 DoctorId = doctor?.DoctorId,
                 BookingHistoryId = bookingHistory.BookingHistoryId,
-                BookingId= bookingDetails.BookingId,
-                ConsultedDate= bookingDetails.BookingDateTime
+                BookingId = bookingDetails.BookingId,
+                ConsultedDate = bookingDetails.BookingDateTime
             };
 
             _context.PatientHistories.Add(patientHistory);

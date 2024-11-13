@@ -53,6 +53,9 @@ namespace ClinicalManagementAPI.Models.Prescription
         [StringLength(300)]
         public string? DoctorAdvices { get; set; }
 
+        
+        public DateTime? PrescribedDate { get; set; }
+
         public int? PatientId { get; set; }
         [ForeignKey("PatientId")]
         public PatientDetails? PatientDetails { get; set; }

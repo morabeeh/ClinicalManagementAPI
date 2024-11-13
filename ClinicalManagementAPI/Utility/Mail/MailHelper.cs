@@ -1,13 +1,18 @@
-﻿using System.Threading.Tasks;
-using System.Net.Mail;
-using System.Net;
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using MimeKit;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 
 namespace ClinicalManagementAPI.Utility.Mail
 {
     public interface IMailHelper
     {
         void SendEmailInBackground(string[] recipients, string subject, string body);
+        void SendEmailWithAttachmentInBackground(string[] recipients, string subject, string body, Stream pdfStream, string fileName);
     }
 
     public class MailHelper : IMailHelper
@@ -21,44 +26,82 @@ namespace ClinicalManagementAPI.Utility.Mail
 
         public void SendEmailInBackground(string[] recipients, string subject, string body)
         {
-            // Run the email-sending logic as a background task
-            Task.Run(async () =>
+            Task.Run(() => SendEmailAsync(recipients, subject, body));
+        }
+
+        public void SendEmailWithAttachmentInBackground(string[] recipients, string subject, string body, Stream pdfStream, string fileName)
+        {
+            Task.Run(() => SendEmailWithAttachmentAsync(recipients, subject, body, pdfStream, fileName));
+        }
+
+        private async Task SendEmailAsync(string[] recipients, string subject, string body)
+        {
+            var message = CreateEmailMessage(recipients, subject, body);
+
+            await SendMessageAsync(message);
+        }
+
+        private async Task SendEmailWithAttachmentAsync(string[] recipients, string subject, string body, Stream pdfStream, string fileName)
+        {
+            var message = CreateEmailMessage(recipients, subject, body);
+
+            // Reset stream position and attach PDF
+            pdfStream.Position = 0;
+            var attachment = new MimePart("application", "pdf")
             {
-                var email = _configuration.GetValue<string>("Email:emailAddress");
-                var password = _configuration.GetValue<string>("Email:password");
-                var host = _configuration.GetValue<string>("Email:host");
-                var port = _configuration.GetValue<int>("Email:port");
+                Content = new MimeContent(pdfStream, ContentEncoding.Default),
+                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                ContentTransferEncoding = ContentEncoding.Base64,
+                FileName = fileName
+            };
+            var multipart = new Multipart("mixed") { message.Body, attachment };
+            message.Body = multipart;
 
-                using var smtpClient = new SmtpClient(host, port)
-                {
-                    EnableSsl = true,
-                    UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential(email, password)
-                };
+            await SendMessageAsync(message);
+        }
 
-                using var message = new MailMessage
-                {
-                    From = new MailAddress(email!),
-                    Subject = subject,
-                    Body = body,
-                    IsBodyHtml = true // Enable HTML content
-                };
+        private MimeMessage CreateEmailMessage(string[] recipients, string subject, string body)
+        {
+            var email = _configuration["Email:emailAddress"];
+            var message = new MimeMessage
+            {
+                Subject = subject,
+                Body = new TextPart("html") { Text = body }
+            };
 
-                // Add each recipient to the message
-                foreach (var recipient in recipients)
-                {
-                    message.To.Add(new MailAddress(recipient));
-                }
+            // Add sender's email
+            message.From.Add(new MailboxAddress("", email)); 
 
-                try
-                {
-                    await smtpClient.SendMailAsync(message);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error sending email: {ex.Message}");
-                }
-            });
+            // Add recipients' emails
+            message.To.AddRange(recipients.Select(recipient => new MailboxAddress("", recipient)));
+
+            return message;
+        }
+
+
+        private async Task SendMessageAsync(MimeMessage message)
+        {
+            var email = _configuration["Email:emailAddress"];
+            var password = _configuration["Email:password"];
+            var host = _configuration["Email:host"];
+            var port = _configuration.GetValue<int>("Email:port");
+
+            using var smtpClient = new MailKit.Net.Smtp.SmtpClient();
+            try
+            {
+                await smtpClient.ConnectAsync(host, port, SecureSocketOptions.StartTls);
+                await smtpClient.AuthenticateAsync(email, password);
+                await smtpClient.SendAsync(message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error sending email: {ex.Message}");
+            }
+            finally
+            {
+                await smtpClient.DisconnectAsync(true);
+                smtpClient.Dispose();
+            }
         }
     }
 }

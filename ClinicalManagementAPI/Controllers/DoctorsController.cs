@@ -373,5 +373,96 @@ namespace ClinicalManagementAPI.Controllers
                 return StatusCode(500, new { Message = "An error occurred while retrieving the doctor details.", Details = ex.Message });
             }
         }
+
+
+        [HttpGet("completed-bookings")]
+        public async Task<IActionResult> GetCompletedPatientDetails(int doctorId)
+        {
+            try
+            {
+                var patientDetailsList = await _context.BookingDetails
+                    .Where(b => b.DoctorId == doctorId && b.BookingStatus == "Booking Completed")
+                    .Include(b => b.PatientDetails)
+                        .ThenInclude(p => p.PatientHistory
+                            .Where(h => h.ConsultedDoctor == _context.Doctors
+                                            .Where(d => d.DoctorId == doctorId)
+                                            .Select(d => d.DoctorName)
+                                            .FirstOrDefault()))
+                    .Include(b => b.PatientDetails)
+                        .ThenInclude(p => p.BookingDetails)
+                    .Include(b => b.BookingHistory)
+                    .Include(b => b.PatientDetails)
+                        .ThenInclude(p => p.User)
+                    .Select(b => b.PatientDetails) // Select only unique PatientDetails
+                    .Distinct()
+                    .ToListAsync();
+
+                if (patientDetailsList == null || !patientDetailsList.Any())
+                {
+                    return NotFound("No completed bookings found for this doctor.");
+                }
+
+                var result = patientDetailsList.Select(p => new
+                {
+                    PatientId = p.PatientId,
+                    PatientGuid = p.PatientGuid,
+                    PatientName = p.PatientName,
+                    PatientDescription = p.PatientDescription,
+                    PatientHealthCondition = p.PatientHealthCondition,
+                    UserDetails = p.User == null ? null : new
+                    {
+                        UserId = p.User.Id,
+                        UserGuid = p.User.UserGuid,
+                        Name = p.User.Name,
+                        EmailAddress = p.User.EmailAddress,
+                        Dob = p.User.Dob,
+                        Gender = p.User.Gender,
+                        Phone = p.User.Phone,
+                        Address = p.User.Address
+                    },
+                    BookingDetails = p.BookingDetails?
+                        .Where(b => b.BookingStatus == "Booking Completed")
+                        .Select(b => new
+                        {
+                            BookingId = b.BookingId,
+                            BookingStatus = b.BookingStatus,
+                            BookingDateTime = b.BookingDateTime,
+                            BookingHistory = b.BookingHistory?
+                                .Select(h => new
+                                {
+                                    BookingHistoryId = h.BookingHistoryId,
+                                    BookedDate = h.BookedDate,
+                                    BookingId = h.BookingId,
+                                    DoctorId = h.DoctorId
+                                })
+                                .ToList()
+                        })
+                        .ToList(),
+                    PatientHistory = p.PatientHistory?
+                        .Where(h => h.ConsultedDoctor == _context.Doctors
+                                        .Where(d => d.DoctorId == doctorId)
+                                        .Select(d => d.DoctorName)
+                                        .FirstOrDefault())
+                        .Select(h => new
+                        {
+                            HistoryId = h.HistoryId,
+                            ConsultedDoctor = h.ConsultedDoctor,
+                            ConsultedDate = h.ConsultedDate,
+                            BookingId = h.BookingId,
+                            DoctorId = h.DoctorId
+                        })
+                        .ToList()
+                }).ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log the error here if needed
+                return StatusCode(500, "An error occurred while retrieving data.");
+            }
+        }
+
+
     }
 }

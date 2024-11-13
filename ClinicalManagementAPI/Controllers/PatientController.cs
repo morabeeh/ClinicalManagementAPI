@@ -1,11 +1,15 @@
-﻿using ClinicalManagementAPI.Data;
+﻿using Azure;
+using ClinicalManagementAPI.Data;
 using ClinicalManagementAPI.DataModels.RequestModels;
 using ClinicalManagementAPI.DataModels.ResponseModels;
 using ClinicalManagementAPI.Models.Doctors;
 using ClinicalManagementAPI.Models.Prescription;
 using ClinicalManagementAPI.Services.PdfServices;
+using ClinicalManagementAPI.Utility.Mail;
+using iTextSharp.text.pdf;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace ClinicalManagementAPI.Controllers
 {
@@ -15,11 +19,15 @@ namespace ClinicalManagementAPI.Controllers
     {
         private readonly ClinicContext _context;
         private readonly IPdfLogicService _pdfLogicService;
+        private readonly IMailTemplate _mailTemplate;
+        private readonly IMailHelper _mailHelper;
 
-        public PatientController(ClinicContext context,IPdfLogicService pdfLogicService)
+        public PatientController(ClinicContext context,IPdfLogicService pdfLogicService, IMailTemplate mailTemplate, IMailHelper mailHelper)
         {
             _context = context;
             _pdfLogicService = pdfLogicService;
+            _mailTemplate = mailTemplate;
+            _mailHelper = mailHelper;
         }
 
 
@@ -70,6 +78,8 @@ namespace ClinicalManagementAPI.Controllers
                     OtherDosage = pd.OtherDosage,
                     OtherDosageTime = pd.OtherDosageTime,
                     DoctorAdvices=pd.DoctorAdvices,
+                    BookingId = pd.BookingId,
+                    PrescribedDate = pd.PrescribedDate
                 }).ToList();
 
             // Fetch the booking details for the specified booking ID and doctor ID
@@ -94,7 +104,9 @@ namespace ClinicalManagementAPI.Controllers
                     PatientHealthCondition = patient.PatientHealthCondition,
                     Gender = patient.User?.Gender,
                     Dob = patient.User?.Dob,
-                    Address = patient.User?.Address
+                    Address = patient.User?.Address,
+                    PhoneNumber=patient.User?.Phone,
+                    EmailAddress=patient.User?.EmailAddress
                 },
                 PatientHistories = filteredPatientHistory, // Only history matching the doctorId
                 PrescriptionDetails = filteredPrescriptionDetails, // Only prescriptions matching the doctorId
@@ -115,6 +127,65 @@ namespace ClinicalManagementAPI.Controllers
 
             return Ok(response);
         }
+
+
+        [HttpGet("getPatientBookings")]
+        public async Task<IActionResult> GetPatientBookings(int userId, [FromQuery] string bookingStatus = null)
+        {
+            var patientData = await _context.PatientDetails
+                .Where(p => p.UserId == userId)
+                .Select(p => new PatientBookingsResponseDto
+                {
+                    Patient = new PatientBookingsResponseDto.PatientDto
+                    {
+                        PatientId = p.PatientId,
+                        PatientGuid = p.PatientGuid.ToString(),
+                        PatientName = p.PatientName,
+                        PatientDescription = p.PatientDescription,
+                        PatientHealthCondition = p.PatientHealthCondition
+                    },
+                    Bookings = p.BookingDetails
+                        .Where(b => bookingStatus == null || b.BookingStatus == bookingStatus)
+                        .Select(b => new PatientBookingsResponseDto.BookingDto
+                        {
+                            BookingId = b.BookingId,
+                            BookingToken = b.BookingToken,
+                            BookingStatus = b.BookingStatus,
+                            BookingDateTime = b.BookingDateTime,
+                            Doctor = new PatientBookingsResponseDto.DoctorDto
+                            {
+                                DoctorId = b.DoctorDetails.DoctorId,
+                                DoctorGuid = b.DoctorDetails.DoctorGuid.ToString(),
+                                DoctorName = b.DoctorDetails.DoctorName,
+                                DoctorEducation = b.DoctorDetails.DoctorEducation,
+                                Specialization = b.DoctorDetails.Specialization,
+                                TotalYearExperience = b.DoctorDetails.TotalYearExperience,
+                                Department = new PatientBookingsResponseDto.DepartmentDto
+                                {
+                                    DepartmentId = b.DoctorDetails.Department.DepartmentId,
+                                    DepartmentName = b.DoctorDetails.Department.DepartmentName,
+                                    DepartmentDescription = b.DoctorDetails.Department.DepartmentDescription
+                                }
+                            },
+                            BookingHistories = b.BookingHistory.Select(h => new PatientBookingsResponseDto.BookingHistoryDto
+                            {
+                                BookingHistoryId = h.BookingHistoryId,
+                                BookedDate = h.BookedDate
+                            }).ToList()
+                        }).ToList()
+                })
+                .FirstOrDefaultAsync();
+
+            if (patientData == null || !patientData.Bookings.Any())
+            {
+                return NotFound("No bookings found for this patient.");
+            }
+
+            return Ok(patientData);
+        }
+
+
+
 
         [HttpGet("generatePatientReport")]
         public async Task<IActionResult> GeneratePatientReport(int patientId, int bookingId, int doctorId)
@@ -161,7 +232,8 @@ namespace ClinicalManagementAPI.Controllers
                     NightDosageTime = pd.NightDosageTime,
                     OtherDosage = pd.OtherDosage,
                     OtherDosageTime = pd.OtherDosageTime,
-                    DoctorAdvices=pd.DoctorAdvices
+                    DoctorAdvices = pd.DoctorAdvices,
+                    PrescribedDate=pd.PrescribedDate
                 }).ToList();
 
             // Fetch the booking details for the specified booking ID and doctor ID
@@ -175,6 +247,7 @@ namespace ClinicalManagementAPI.Controllers
                 return NotFound("No booking found for the specified Patient and for this doctor");
             }
 
+            var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
             // Prepare the response model
             var response = new PatientBookingResponseDto
             {
@@ -186,7 +259,9 @@ namespace ClinicalManagementAPI.Controllers
                     PatientHealthCondition = patient.PatientHealthCondition,
                     Gender = patient.User?.Gender,
                     Dob = patient.User?.Dob,
-                    Address = patient.User?.Address
+                    Address = patient.User?.Address,
+                    PhoneNumber = patient.User?.Phone,
+                    EmailAddress = patient.User?.EmailAddress
                 },
                 PatientHistories = filteredPatientHistory, // Only history matching the doctorId
                 PrescriptionDetails = filteredPrescriptionDetails, // Only prescriptions matching the doctorId
@@ -205,11 +280,11 @@ namespace ClinicalManagementAPI.Controllers
                 }).ToList()
             };
 
-            //var pdfStream= _pdfLogicService.GeneratePdf(response);
+            var pdfBytes = await _pdfLogicService.GeneratePdf(response);
+            var base64Pdf = Convert.ToBase64String(pdfBytes);
 
-            string filePath = _pdfLogicService.SavePdfToFile(response);
-
-            return Ok(response);
+            // Return the Base64-encoded PDF as JSON
+            return Ok(new { PdfContent = base64Pdf });
         }
 
 
@@ -264,6 +339,7 @@ namespace ClinicalManagementAPI.Controllers
                 NightDosageTime = request.NightDosageTime,
                 OtherDosageTime = request.OtherDosageTime,
                 DoctorAdvices = request.DoctorAdvices,
+                PrescribedDate = DateTime.UtcNow, 
                 PatientId = request.PatientId,
                 BookingId = request.BookingId,
                 DoctorId = request.DoctorId,
@@ -300,5 +376,22 @@ namespace ClinicalManagementAPI.Controllers
             return Ok();
         }
 
+
+
+        [HttpPost("sendEmail")]
+        public async Task <IActionResult> SendEmail(string emailAddress)
+        {
+
+            string body = "Test Email";
+            var recipients = new List<string> { emailAddress };
+            var validRecipients = recipients
+                .Where(recipient => Regex.IsMatch(recipient, @"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"))
+            .ToArray();
+
+
+            _mailHelper.SendEmailInBackground(validRecipients, "Patient Report", body);
+
+            return Ok();
+        }
     }
 }
