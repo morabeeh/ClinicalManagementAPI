@@ -95,8 +95,10 @@ namespace ClinicalManagementAPI.Services.AuthenticatoinServices
             {
                 statusCode = 200,
                 message = "User successfully registered",
+                userId = user.Id,
                 userName = user.Name,
                 userRole = userRole.UserRoleName,
+                userRoleNameId = userRole.UserRoleNameId,
                 token = token
             });
         }

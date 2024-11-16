@@ -4,6 +4,7 @@ using ClinicalManagementAPI.DataModels.RequestModels;
 using ClinicalManagementAPI.DataModels.ResponseModels;
 using ClinicalManagementAPI.Models.Doctors;
 using ClinicalManagementAPI.Models.Prescription;
+using ClinicalManagementAPI.Models.Users;
 using ClinicalManagementAPI.Services.PdfServices;
 using ClinicalManagementAPI.Utility.Mail;
 using iTextSharp.text.pdf;
@@ -287,6 +288,105 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(new { PdfContent = base64Pdf });
         }
 
+        [HttpGet("generateSpecificPatientReport")]
+        public async Task<IActionResult> GenerateSpecificPatientReport(int patientId, int bookingId, int doctorId)
+        {
+            // Fetch patient details and include User details for Dob, Gender, and Address
+            var patient = await _context.PatientDetails
+                .Include(p => p.PatientHistory)
+                .Include(p => p.PrescriptionDetails) // Include prescriptions for this patient
+                .Include(p => p.User) // Include User to access Dob, Gender, and Address
+                .Where(p => p.PatientId == patientId)
+                .FirstOrDefaultAsync();
+
+            if (patient == null)
+            {
+                return NotFound("No patient details found for this patient.");
+            }
+
+            // Filter patient history based on the specified doctorId
+            var filteredPatientHistory = patient.PatientHistory
+                .Where(ph => ph.DoctorId == doctorId)
+                .Select(ph => new PatientResponseHistoryDto
+                {
+                    HistoryId = ph.HistoryId,
+                    ConsultedDate = ph.ConsultedDate,
+                    ConsultedDoctor = ph.ConsultedDoctor
+                }).ToList();
+
+            // Filter prescription details based on the specified doctorId and bookingId
+            var filteredPrescriptionDetails = patient.PrescriptionDetails
+                .Where(pd => pd.DoctorId == doctorId && pd.BookingId == bookingId)
+                .Select(pd => new PrescriptionResponseDto
+                {
+                    PrescriptionId = pd.PrescriptionId,
+                    PrescriptionName = pd.PrescriptionName,
+                    PrescriptionDescription = pd.PrescriptionDescription,
+                    DeseaseName = pd.DeseaseName,
+                    DeseaseDescription = pd.DeseaseDescription,
+                    DeseaseType = pd.DeseaseType,
+                    MorningDosage = pd.MorningDosage,
+                    MorningDosageTime = pd.MorningDosageTime,
+                    NoonDosage = pd.NoonDosage,
+                    NoonDosageTime = pd.NoonDosageTime,
+                    NightDosage = pd.NightDosage,
+                    NightDosageTime = pd.NightDosageTime,
+                    OtherDosage = pd.OtherDosage,
+                    OtherDosageTime = pd.OtherDosageTime,
+                    DoctorAdvices = pd.DoctorAdvices,
+                    PrescribedDate = pd.PrescribedDate
+                }).ToList();
+
+            // Fetch the booking details for the specified booking ID and doctor ID
+            var booking = await _context.BookingDetails
+                .Include(b => b.BookingHistory)
+                .Where(b => b.BookingId == bookingId && b.DoctorId == doctorId)
+                .FirstOrDefaultAsync();
+
+            if (booking == null)
+            {
+                return NotFound("No booking found for the specified patient and doctor.");
+            }
+
+            // Prepare the response model
+            var response = new PatientBookingResponseDto
+            {
+                PatientDetails = new PatientResponseDetailsDto
+                {
+                    PatientId = patient.PatientId,
+                    PatientName = patient.PatientName,
+                    PatientDescription = patient.PatientDescription,
+                    PatientHealthCondition = patient.PatientHealthCondition,
+                    Gender = patient.User?.Gender,
+                    Dob = patient.User?.Dob,
+                    Address = patient.User?.Address,
+                    PhoneNumber = patient.User?.Phone,
+                    EmailAddress = patient.User?.EmailAddress
+                },
+                PatientHistories = filteredPatientHistory,
+                PrescriptionDetails = filteredPrescriptionDetails,
+                BookingDetails = new PatientBookingDetailsDto
+                {
+                    BookingId = booking.BookingId,
+                    BookingToken = booking.BookingToken,
+                    BookingStatus = booking.BookingStatus,
+                    BookingDateTime = booking.BookingDateTime,
+                    IsBookingCancelled = booking.IsBookingCancelled
+                },
+                BookingHistories = booking.BookingHistory.Select(bh => new PatientBookingHistoryDto
+                {
+                    BookingHistoryId = bh.BookingHistoryId,
+                    BookedDate = bh.BookedDate
+                }).ToList()
+            };
+
+            var pdfBytes = await _pdfLogicService.GeneratePdf(response);
+            var base64Pdf = Convert.ToBase64String(pdfBytes);
+
+            // Return the Base64-encoded PDF as JSON
+            return Ok(new { PdfContent = base64Pdf });
+        }
+
 
         [HttpPost("addPrescription")]
         public async Task<IActionResult> AddPrescription(PrescriptionRequestDto request)
@@ -393,5 +493,212 @@ namespace ClinicalManagementAPI.Controllers
 
             return Ok();
         }
+
+
+
+
+        [HttpGet("getPatientPrescriptions")]
+        public async Task<IActionResult> GetPatientPrescriptions(int patientId, int doctorId, int? bookingId = null)
+        {
+            var result = await _context.PatientDetails
+                .Where(p => p.PatientId == patientId)
+                .Select(p => new PatientPrescriptionsResponseDto
+                {
+                    Patient = new PatientPrescriptionsResponseDto.PatientDto
+                    {
+                        PatientId = p.PatientId,
+                        PatientGuid = p.PatientGuid.ToString(),
+                        PatientName = p.PatientName,
+                        PatientDescription = p.PatientDescription,
+                        PatientHealthCondition = p.PatientHealthCondition,
+                        // Calculate UserAlreadyRate property
+                        UserAlreadyRate = _context.UserRatings.Any(ur =>
+                            ur.PatientId == patientId &&
+                            ur.DoctorId == doctorId &&
+                            (bookingId == null || ur.BookingId == bookingId))
+                    },
+                    Doctor = p.PrescriptionDetails
+                        .Where(pr => pr.DoctorId == doctorId)
+                        .Select(pr => new PatientPrescriptionsResponseDto.DoctorDto
+                        {
+                            DoctorId = pr.DoctorDetails.DoctorId,
+                            DoctorGuid = pr.DoctorDetails.DoctorGuid.ToString(),
+                            DoctorName = pr.DoctorDetails.DoctorName,
+                            DoctorEducation = pr.DoctorDetails.DoctorEducation,
+                            Specialization = pr.DoctorDetails.Specialization,
+                            TotalYearExperience = pr.DoctorDetails.TotalYearExperience,
+                            Department = new PatientPrescriptionsResponseDto.DepartmentDto
+                            {
+                                DepartmentId = pr.DoctorDetails.Department.DepartmentId,
+                                DepartmentName = pr.DoctorDetails.Department.DepartmentName,
+                                DepartmentDescription = pr.DoctorDetails.Department.DepartmentDescription
+                            }
+                        })
+                        .FirstOrDefault(),
+                    Prescriptions = p.PrescriptionDetails
+                        .Where(pr => pr.DoctorId == doctorId && (bookingId == null || pr.BookingId == bookingId))
+                        .Select(pr => new PatientPrescriptionsResponseDto.PrescriptionDto
+                        {
+                            PrescriptionId = pr.PrescriptionId,
+                            PrescriptionName = pr.PrescriptionName,
+                            PrescriptionDescription = pr.PrescriptionDescription,
+                            DeseaseName = pr.DeseaseName,
+                            DeseaseType = pr.DeseaseType,
+                            DeseaseDescription = pr.DeseaseDescription,
+                            MorningDosage = pr.MorningDosage,
+                            NoonDosage = pr.NoonDosage,
+                            NightDosage = pr.NightDosage,
+                            OtherDosage = pr.OtherDosage,
+                            MorningDosageTime = pr.MorningDosageTime,
+                            NoonDosageTime = pr.NoonDosageTime,
+                            NightDosageTime = pr.NightDosageTime,
+                            OtherDosageTime = pr.OtherDosageTime,
+                            DoctorAdvices = pr.DoctorAdvices,
+                            PrescribedDate = pr.PrescribedDate,
+                            BookingDetails = pr.BookingDetails != null ? new PatientPrescriptionsResponseDto.BookingDetailsDto
+                            {
+                                BookingId = pr.BookingDetails.BookingId,
+                                BookingToken = pr.BookingDetails.BookingToken,
+                                BookingStatus = pr.BookingDetails.BookingStatus,
+                                BookingDateTime = pr.BookingDetails.BookingDateTime,
+                                IsBookingCancelled = pr.BookingDetails.IsBookingCancelled
+                            } : null
+                        }).ToList()
+                })
+                .FirstOrDefaultAsync();
+
+            if (result == null)
+            {
+                return NotFound("No prescriptions found for this patient and doctor.");
+            }
+
+            return Ok(result);
+        }
+
+
+        [HttpPost("rate")]
+        public async Task<IActionResult> Rate([FromBody] UserRatingsRequestDto ratingsRequest)
+        {
+            if (ratingsRequest == null)
+                return BadRequest("Invalid rating request");
+
+            // Fetch patient details for PatientWhoRated
+            var patient = await _context.PatientDetails
+                .FirstOrDefaultAsync(p => p.PatientId == ratingsRequest.PatientId);
+
+            if (patient == null)
+                return NotFound("Patient not found");
+
+            // Fetch doctor details if DoctorId is provided
+            DoctorDetails? doctor = null;
+            if (ratingsRequest.DoctorId.HasValue)
+            {
+                doctor = await _context.Doctors
+                    .FirstOrDefaultAsync(d => d.DoctorId == ratingsRequest.DoctorId.Value);
+
+                if (doctor == null)
+                    return NotFound("Doctor not found");
+            }
+
+            // Fetch booking details for validation
+            var booking = await _context.BookingDetails
+                .FirstOrDefaultAsync(b => b.BookingId == ratingsRequest.BookingId);
+
+            if (booking == null)
+                return NotFound("Booking not found");
+
+            // Create UserRatings entry
+            var userRatings = new UserRatings
+            {
+                PatientId = ratingsRequest.PatientId,
+                BookingId = ratingsRequest.BookingId,
+                PatientWhoRated = patient.PatientName,
+                RatedDoctor = doctor?.DoctorName,
+                DoctorRatingsValue = ratingsRequest.DoctorRatingsValue,
+                PatientFeedbackForDoctor = ratingsRequest.PatientFeedbackForDoctor,
+                PatientFeedbackForClinic = ratingsRequest.PatientFeedbackForClinic,
+                ClinicRatingValue = ratingsRequest.ClinicRatingValue,
+                DoctorId = ratingsRequest.DoctorId
+            };
+
+            // Add and save the rating
+            _context.UserRatings.Add(userRatings);
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+
+
+        [HttpGet("ratings/doctor")]
+        public async Task<IActionResult> GetDoctorRatings(int doctorId)
+        {
+            // Check if doctor exists
+            var doctor = await _context.Doctors
+                .FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+
+            if (doctor == null)
+                return NotFound("Doctor not found");
+
+            // Fetch ratings for the doctor with booking details
+            var doctorRatings = await _context.UserRatings
+                .Where(r => r.DoctorId == doctorId && r.DoctorRatingsValue.HasValue)
+                .Select(r => new
+                {
+                    r.UserRatingsId,
+                    r.PatientWhoRated,
+                    r.DoctorRatingsValue,
+                    r.PatientFeedbackForDoctor,
+                    r.BookingId,
+                    BookingDetails = new
+                    {
+                        r.BookingDetails.BookingId,
+                        r.BookingDetails.BookingToken,
+                        r.BookingDetails.BookingStatus,
+                        r.BookingDetails.BookingDateTime,
+                        r.BookingDetails.IsBookingCancelled,
+                        PatientName = r.BookingDetails.PatientDetails.PatientName,
+                        DoctorName = r.BookingDetails.DoctorDetails.DoctorName
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(doctorRatings);
+        }
+
+        
+        
+        [HttpGet("ratings/clinic")]
+        public async Task<IActionResult> GetClinicRatings()
+        {
+            // Fetch ratings for the clinic with booking details
+            var clinicRatings = await _context.UserRatings
+                .Where(r => r.ClinicRatingValue.HasValue)
+                .Select(r => new
+                {
+                    r.UserRatingsId,
+                    r.PatientWhoRated,
+                    r.ClinicRatingValue,
+                    r.PatientFeedbackForClinic,
+                    r.BookingId,
+                    BookingDetails = new
+                    {
+                        r.BookingDetails.BookingId,
+                        r.BookingDetails.BookingToken,
+                        r.BookingDetails.BookingStatus,
+                        r.BookingDetails.BookingDateTime,
+                        r.BookingDetails.IsBookingCancelled,
+                        PatientName = r.BookingDetails.PatientDetails.PatientName,
+                        DoctorName = r.BookingDetails.DoctorDetails.DoctorName
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(clinicRatings);
+        }
+
+
+
+
     }
 }

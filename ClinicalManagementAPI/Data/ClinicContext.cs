@@ -21,6 +21,8 @@ namespace ClinicalManagementAPI.Data
         public DbSet<UserDetails> Users { get; set; }
         public DbSet<UserRole> UserRoles { get; set; }
 
+        public DbSet<UserRatings> UserRatings { get; set; }
+
         //Doctors
         public DbSet<DoctorDetails> Doctors { get; set; }
         public DbSet<DepartmentDetails> Departments { get; set; }
@@ -180,6 +182,29 @@ namespace ClinicalManagementAPI.Data
                 .WithMany()
                 .HasForeignKey(ph => ph.DoctorId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+
+            // UserRatings and Patient Mapping
+            modelBuilder.Entity<UserRatings>()
+                .HasOne(ur => ur.PatientDetails)
+                .WithMany()
+                .HasForeignKey(ur => ur.PatientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // UserRatings and Doctor Mapping
+            modelBuilder.Entity<UserRatings>()
+                .HasOne(ur => ur.DoctorDetails)
+                .WithMany()
+                .HasForeignKey(ur => ur.DoctorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // UserRatings and Booking Mapping
+            modelBuilder.Entity<UserRatings>()
+                .HasOne(ur => ur.BookingDetails)
+                .WithMany()
+                .HasForeignKey(ur => ur.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
         }
 
 

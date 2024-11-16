@@ -18,7 +18,8 @@ namespace ClinicalManagementAPI.DataModels.ResponseModels
         public List<AvailabilityDto> Availabilities { get; set; }
         public List<AttendanceDto> Attendances { get; set; }
 
-
+        public int? AverageRating { get; set; } // Nullable and rounded to the next whole number
+        public int TotalRatings { get; set; }
     }
 
     public class DepartmentDto

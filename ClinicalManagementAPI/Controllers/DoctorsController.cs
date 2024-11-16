@@ -151,7 +151,19 @@ namespace ClinicalManagementAPI.Controllers
                             DayOfWeek = a.DayOfWeek,
                             StartTime = a.StartTime,
                             EndTime = a.EndTime
-                        }).ToList()
+                        }).ToList(),
+                    AverageRating = (int?)(_context.UserRatings
+                                    .Where(r => r.DoctorId == d.DoctorId)
+                                    .Select(r => (double?)r.DoctorRatingsValue)
+                                    .Average()
+                                    .HasValue
+                                        ? (double?)Math.Ceiling(_context.UserRatings
+                                              .Where(r => r.DoctorId == d.DoctorId)
+                                              .Select(r => (double?)r.DoctorRatingsValue)
+                                              .Average() ?? 0)
+                                        : null),
+                                        TotalRatings = _context.UserRatings
+                                    .Count(r => r.DoctorId == d.DoctorId)// Default to 0 if no ratings
                 })
                 .ToListAsync();
 
