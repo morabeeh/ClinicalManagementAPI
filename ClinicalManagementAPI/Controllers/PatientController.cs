@@ -666,8 +666,44 @@ namespace ClinicalManagementAPI.Controllers
             return Ok(doctorRatings);
         }
 
-        
-        
+
+        [HttpGet("ratings/GetAllDoctorRatings")]
+        public async Task<IActionResult> GetAllDoctorRatings()
+        {
+            // Fetch all doctor ratings along with booking and patient details
+            var allDoctorRatings = await _context.UserRatings
+                .Where(r => r.DoctorRatingsValue.HasValue) // Ensure only ratings with a value are considered
+                .Select(r => new
+                {
+                    r.UserRatingsId,
+                    r.PatientWhoRated, // ID or unique identifier of the patient who rated
+                    r.DoctorRatingsValue, // Rating value (1 to 5)
+                    r.PatientFeedbackForDoctor, // Feedback provided by the patient
+                    r.BookingId, // Booking ID associated with the rating
+                    BookingDetails = new
+                    {
+                        r.BookingDetails.BookingId, // Booking ID
+                        r.BookingDetails.BookingToken, // Booking Token
+                        r.BookingDetails.BookingStatus, // Status of the booking
+                        r.BookingDetails.BookingDateTime, // Date and time of the booking
+                        r.BookingDetails.IsBookingCancelled, // Whether the booking was cancelled
+                        PatientName = r.BookingDetails.PatientDetails.PatientName, // Patient's name
+                        DoctorName = r.BookingDetails.DoctorDetails.DoctorName // Doctor's name
+                    }
+                })
+                .ToListAsync();
+
+            // Check if no ratings are available
+            if (!allDoctorRatings.Any())
+            {
+                return NotFound("No ratings found for any doctor.");
+            }
+
+            return Ok(allDoctorRatings);
+        }
+
+
+
         [HttpGet("ratings/clinic")]
         public async Task<IActionResult> GetClinicRatings()
         {

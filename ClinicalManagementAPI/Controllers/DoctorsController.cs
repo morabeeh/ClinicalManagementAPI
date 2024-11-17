@@ -138,6 +138,7 @@ namespace ClinicalManagementAPI.Controllers
                     Specialization = d.Specialization,
                     TotalYearExperience = d.TotalYearExperience,
                     CitizenId = d.User.CitizenId,
+                    Gender=d.User.Gender,
                     Department = new DepartmentDto
                     {
                         DepartmentId = d.Department.DepartmentId,
@@ -433,7 +434,7 @@ namespace ClinicalManagementAPI.Controllers
                         Address = p.User.Address
                     },
                     BookingDetails = p.BookingDetails?
-                        .Where(b => b.BookingStatus == "Booking Completed")
+                        .Where(b => b.BookingStatus == "Booking Completed" && b.DoctorId==doctorId)
                         .Select(b => new
                         {
                             BookingId = b.BookingId,
