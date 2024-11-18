@@ -15,15 +15,15 @@ namespace ClinicalManagementAPI.Utility.Mail
         {
             string body = $@"<p style='font-family: Calibri; font-size: 12px; color: #249ee4;'>
                         Dear {user.Name},<br/><br/>
-                       Welcome to Al-Huda Poly Clinic <b>''</b> . 
+                       Welcome to Al-Huda Poly Clinic . 
                     </p>
                     <p style='font-family: Calibri; font-size: 12px; color: #249ee4; margin-left: 20px;'>
-                        <b style='color: #0f3464;'>Project Details:</b><br/>
-                         Book Your Appoinments today!<br/>
+                        <b style='color: #0f3464;'> Book Your Appoinments today!</b><br/>
+                        <br/>
                          
                     </p>
 
-                    <p style='font-family: Calibri; font-size: 12px; color: #249ee4;'>Thanks and Regards,<br/> {user}</p>";
+                    <p style='font-family: Calibri; font-size: 12px; color: #249ee4;'>Thanks and Regards</p>";
 
             return body;
         }
