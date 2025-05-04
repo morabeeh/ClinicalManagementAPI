@@ -23,6 +23,8 @@ namespace ClinicalManagementAPI.Data
 
         public DbSet<UserRatings> UserRatings { get; set; }
 
+        public DbSet<LoginAttempt> LoginAttempts { get; set; }
+
         //Doctors
         public DbSet<DoctorDetails> Doctors { get; set; }
         public DbSet<DepartmentDetails> Departments { get; set; }

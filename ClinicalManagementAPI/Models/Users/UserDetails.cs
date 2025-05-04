@@ -25,7 +25,8 @@ namespace ClinicalManagementAPI.Models.Users
 
         [Required]
         [StringLength(100)]
-        public string Password { get; set; }
+        public string PasswordHash { get; set; }
+
 
         [Required]
         [StringLength(20)]

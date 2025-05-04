@@ -1,11 +1,13 @@
 using ClinicalManagementAPI.Data;
 using ClinicalManagementAPI.Encryption.JWT;
 using ClinicalManagementAPI.Models; // Adjust this if JwtSettings is in a different namespace
+using ClinicalManagementAPI.Models.Users;
 using ClinicalManagementAPI.Services.AuthenticatoinServices;
 using ClinicalManagementAPI.Services.DoctorLogicService;
 using ClinicalManagementAPI.Services.PdfServices;
 using ClinicalManagementAPI.Utility.Mail;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -18,11 +20,17 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ClinicContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<IPasswordHasher<UserDetails>, PasswordHasher<UserDetails>>();
+builder.Services.AddScoped<IAuthenticationServices, AuthenticationService>();
+
 builder.Services.AddScoped<IDoctorLogicService, DoctorLogicService>();
 builder.Services.AddScoped<IAuthenticationServices, AuthenticationService>();
 builder.Services.AddScoped<IPdfLogicService, PdfLogicService>();
 builder.Services.AddScoped<IMailHelper, MailHelper>();
 builder.Services.AddScoped<IMailTemplate, MailTemplate>();
+builder.Services.AddHttpClient();
 
 // Configure CORS to allow any origin
 builder.Services.AddCors(options =>

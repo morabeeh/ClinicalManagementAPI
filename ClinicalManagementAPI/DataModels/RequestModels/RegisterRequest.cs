@@ -7,22 +7,22 @@ namespace ClinicalManagementAPI.DataModels.RequestModels
 
         [Required]
         [StringLength(100)]
-        public string Name { get; set; }
+        public string  Name { get; set; }
 
         [Required]
         [StringLength(20)]
-        public string CitizenId { get; set; }
+        public string  CitizenId { get; set; }
 
         [Required]
         [EmailAddress]
-        public string EmailAddress { get; set; }
+        public string  EmailAddress { get; set; }
 
         [Required]
-        [StringLength(100)]
-        public string Password { get; set; }
+        [StringLength(200)]
+        public string Password{ get; set; }
 
         [Required]
-        [StringLength(20)]
+        [StringLength(30)]
         public string Dob { get; set; }
 
         [Required]

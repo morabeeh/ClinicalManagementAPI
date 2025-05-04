@@ -78,6 +78,8 @@ namespace ClinicalManagementAPI.Controllers
 
 
 
+        //temprary api for hasing the existing password
+
 
 
     }
